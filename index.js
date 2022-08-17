@@ -133,7 +133,8 @@ export default class SharedMap {
      */
     get length() {
         /* We do not hold a lock here */
-        return Atomics.load(this.meta, META.length);
+        // return Atomics.load(this.meta, META.length); 
+        return this.meta[META.length];
     }
 
     /**
@@ -149,37 +150,38 @@ export default class SharedMap {
      * @private
      */
     _lock(l) {
-        while (true) {
-            let state;
-            state = Atomics.exchange(this.maplock, l, 1);
-            if (state == 0)
-                return;
-            Atomics.wait(this.maplock, l, state);
-        }
+        // while (true) {
+        //     let state;
+        //     state = Atomics.exchange(this.maplock, l, 1);
+        //     if (state == 0)
+        //         return;
+        //     Atomics.wait(this.maplock, l, state);
+        // }
     }
 
     /**
      * @private
      */
     _unlock(l) {
-        const state = Atomics.exchange(this.maplock, l, 0);
-        if (state == 0)
-            throw new Error('maplock desync ' + l);
-        Atomics.notify(this.maplock, l);
+        // const state = Atomics.exchange(this.maplock, l, 0);
+        // if (state == 0)
+        //     throw new Error('maplock desync ' + l);
+        // Atomics.notify(this.maplock, l);
     }
 
     /**
      * @private
      */
     _lockLine(pos) {
-        const bitmask = 1 << (pos % 32);
-        const index = Math.floor(pos / 32);
-        while (true) {
-            const state = Atomics.or(this.linelocks, index, bitmask);
-            if ((state & bitmask) == 0)
-                return pos;
-            Atomics.wait(this.linelocks, index, state);
-        }
+        return pos;
+        // const bitmask = 1 << (pos % 32);
+        // const index = Math.floor(pos / 32);
+        // while (true) {
+        //     const state = Atomics.or(this.linelocks, index, bitmask);
+        //     if ((state & bitmask) == 0)
+        //         return pos;
+        //     Atomics.wait(this.linelocks, index, state);
+        // }
     }
     /* eslint-enable no-constant-condition */
 
@@ -187,13 +189,14 @@ export default class SharedMap {
      * @private
      */
     _unlockLine(pos) {
-        const bitmask = 1 << (pos % 32);
-        const notbitmask = (~bitmask) & UINT32_MAX;
-        const index = Math.floor(pos / 32);
-        const state = Atomics.and(this.linelocks, index, notbitmask);
-        if ((state & bitmask) == 0)
-            throw new Error('linelock desync ' + pos);
-        Atomics.notify(this.linelocks, index);
+        return;
+        // const bitmask = 1 << (pos % 32);
+        // const notbitmask = (~bitmask) & UINT32_MAX;
+        // const index = Math.floor(pos / 32);
+        // const state = Atomics.and(this.linelocks, index, notbitmask);
+        // if ((state & bitmask) == 0)
+        //     throw new Error('linelock desync ' + pos);
+        // Atomics.notify(this.linelocks, index);
     }
 
     /**
@@ -368,7 +371,8 @@ export default class SharedMap {
         /* Hash */
         let pos = this._hash(key);
         /* Check for full table condition */
-        if (Atomics.load(this.meta, META.length) === this.meta[META.maxSize])
+        // if (Atomics.load(this.meta, META.length) === this.meta[META.maxSize])
+        if (this.meta[META.length] === this.meta[META.maxSize])
             if (!this._find(key, exclusive))
                 throw new RangeError('SharedMap is full');
         /* Find the first free bucket, remembering the last occupied one to chain it */
@@ -408,7 +412,8 @@ export default class SharedMap {
             this._write(pos, key, value);
             this.chaining[pos] = UINT32_UNDEFINED;
             /* Use Atomics to increase the length, we do not hold an exclusive lock here */
-            Atomics.add(this.meta, META.length, 1);
+            // Atomics.add(this.meta, META.length, 1);
+            this.meta[META.length] += 1;
             if (toChain !== undefined) {
                 this.chaining[toChain] = pos;
                 exclusive || this._unlockLine(toChain);
@@ -598,7 +603,8 @@ export default class SharedMap {
         this.keysData[pos * this.meta[META.keySize]] = 0;
         if (previous !== UINT32_UNDEFINED)
             this.chaining[previous] = UINT32_UNDEFINED;
-        Atomics.sub(this.meta, META.length, 1);
+        // Atomics.sub(this.meta, META.length, 1);
+        this.meta[META.length] -= 1;
         if (next === UINT32_UNDEFINED) {
             /* There was no further chaining, just delete this element */
             /* and unchain it from the previous */
@@ -615,7 +621,8 @@ export default class SharedMap {
         while (el !== UINT32_UNDEFINED) {
             chain.push({ key: this._decodeKey(el), value: this._decodeValue(el) });
             this.keysData[el * this.meta[META.keySize]] = 0;
-            Atomics.sub(this.meta, META.length, 1);
+            // Atomics.sub(this.meta, META.length, 1);
+            this.meta[META.length] -= 1;
             el = this.chaining[el];
         }
         for (el of chain) {
@@ -745,7 +752,8 @@ export default class SharedMap {
         this.lockExclusive();
         this.keysData.fill(0);
         this.valuesData.fill(0);
-        Atomics.store(this.meta, META.length, 0);
+        // Atomics.store(this.meta, META.length, 0);
+        this.meta[META.length] = 0;
         this.unlockExclusive();
     }
 }
